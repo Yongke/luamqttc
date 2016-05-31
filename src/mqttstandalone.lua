@@ -9,4 +9,5 @@ local opts = {
 }
 
 local conn = assert(mqttclient:connect(opts))
-conn:publish("ttopic", "xxxx from lua client")
+conn:publish("lua2ws", "xxxx from lua client")
+conn:subscribe("ws2lua", 0, nil, 10)

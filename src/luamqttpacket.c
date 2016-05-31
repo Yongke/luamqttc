@@ -259,6 +259,19 @@ static int serialize_subscribe(lua_State *L) {
     return 1;
 }
 
+static int deserialize_suback(lua_State *L) {
+    int count = 0, grantedQoS = 128;
+    unsigned short packetid;
+
+    luaL_checktype(L, 1, LUA_TSTRING);
+    if (MQTTDeserialize_suback(&packetid, 1, &count, &grantedQoS,
+                               (unsigned char *) lua_tostring(L, 1), luaL_len(L, 1)) == 1)
+
+        lua_pushboolean(L, grantedQoS != 128);
+    lua_pushinteger(L, grantedQoS);
+    return 2;
+}
+
 static int serialize_unsubscribe(lua_State *L) {
     luaL_Buffer result;
     int len = 0;
@@ -307,12 +320,15 @@ static int serialize_disconnect(lua_State *L) {
 }
 
 static const struct luaL_Reg luamqttc[] = {
-        {"serialize_connect",    serialize_connect},
-        {"deserialize_connack",  deserialize_connack},
-        {"serialize_pingreq",    serialize_pingreq},
-        {"serialize_publish",    serialize_publish},
-        {"deserialize_ack",      deserialize_ack},
-        {"serialize_disconnect", serialize_disconnect},
+        {"serialize_connect",     serialize_connect},
+        {"deserialize_connack",   deserialize_connack},
+        {"serialize_pingreq",     serialize_pingreq},
+        {"serialize_publish",     serialize_publish},
+        {"serialize_subscribe",   serialize_subscribe},
+        {"deserialize_suback",    deserialize_suback},
+        {"serialize_unsubscribe", serialize_unsubscribe},
+        {"deserialize_ack",       deserialize_ack},
+        {"serialize_disconnect",  serialize_disconnect},
         {NULL, NULL}
 };
 

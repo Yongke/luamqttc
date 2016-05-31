@@ -85,17 +85,21 @@ _M.read_packet = function(self)
     return type, table.concat(buff)
 end
 
+_M.settimeout = function(self, timeout)
+    self.timer = timer:new(timeout or 5)
+    self.transport:settimeout(timeout)
+end
+
 _M.connect = function(self, opts, timeout)
     local sock = assert(socket.connect("mangoiot.mqtt.iot.gz.baidubce.com", 1883))
-    sock:settimeout(timeout)
-    self.timer = timer:new(timeout or 5)
     self.transport = sock
+    self:settimeout(timeout)
 
     local req = mqttpacket.serialize_connect(opts)
     local ok, err = self:send(req)
     if not ok then
         print(err)
-        return nil
+        return nil, err
     end
 
     local type, data = self:read_packet()
@@ -103,32 +107,63 @@ _M.connect = function(self, opts, timeout)
     local success, code = mqttpacket.deserialize_connack(data)
     if not success then
         print(code)
-        return nil
+        return nil, err
     end
 
     return self
 end
 
-_M.publish = function(self, topic, message)
+_M.publish = function(self, topic, message, timeout)
     assert(self.transport)
+    self:settimeout(timeout)
+
     local req = mqttpacket.serialize_publish(topic, message)
     local ok, err = self:send(req)
     if not ok then
         print(err)
-        return nil
+        return nil, err
     end
+
+    return true
 end
 
-_M.subscribe = function(self)
+_M.subscribe = function(self, topic, qos, callback, timeout)
     assert(self.transport)
+    self:settimeout(timeout)
+
+    local req = mqttpacket.serialize_subscribe(topic, qos or 0)
+    local ok, err = self:send(req)
+    if not ok then
+        print(err)
+        return nil, err
+    end
+
+    local type, data = self:read_packet()
+    if type == 9 then
+        local ok, granted_qos = mqttpacket.deserialize_suback(data)
+        print(ok, granted_qos)
+        -- return true
+
+        while true do
+            local type, data = self:read_packet()
+            assert(type)
+
+            print(type, data)
+        end
+    end
+
+
+    return nil, "suback is wrong"
 end
 
-_M.unsubscribe = function(self)
+_M.unsubscribe = function(self, timeout)
     assert(self.transport)
+    self:settimeout(timeout)
 end
 
-_M.disconnect = function(self)
+_M.disconnect = function(self, timeout)
     assert(self.transport)
+    self:settimeout(timeout)
 end
 
 return _M
