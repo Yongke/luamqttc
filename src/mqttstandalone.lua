@@ -1,0 +1,12 @@
+package.cpath = package.cpath .. ';/Users/yongke/IdeaProjects/luamqttc/build/?.dylib'
+local assert = assert
+local mqttclient = require("mqttclient")
+
+local opts = {
+    client_id = "lua001",
+    username = "mangoiot/lua001",
+    password = "GmpzzdL3tqBHnBo7KYnuCByab8Of05LNw1zdA9/EYxM="
+}
+
+local conn = assert(mqttclient:connect(opts))
+conn:publish("ttopic", "xxxx from lua client")
