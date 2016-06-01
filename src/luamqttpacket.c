@@ -72,20 +72,16 @@ static MQTTPacket_connectData parse_connect_options(lua_State *L, int idx) {
     lua_getfield(L, idx, "username");
     if (lua_isstring(L, -1)) {
         options.username = make_MQTTString(lua_tostring(L, -1));
-    } else {
-        luaL_error(L, "invalid username");
     }
     lua_pop(L, 1);
 
     lua_getfield(L, idx, "password");
     if (lua_isstring(L, -1)) {
         options.password = make_MQTTString(lua_tostring(L, -1));
-    } else {
-        luaL_error(L, "invalid password");
     }
     lua_pop(L, 1);
 
-    lua_getfield(L, idx, "keep_alive_interval");
+    lua_getfield(L, idx, "keep_alive");
     if (lua_isnumber(L, -1)) {
         options.keepAliveInterval = (unsigned short) lua_tointeger(L, -1);
     }
@@ -96,7 +92,6 @@ static MQTTPacket_connectData parse_connect_options(lua_State *L, int idx) {
         options.cleansession = (unsigned char) (lua_toboolean(L, -1) ? 1 : 0);
     }
     lua_pop(L, 1);
-
 
     lua_getfield(L, idx, "will_flag");
     if (lua_isboolean(L, -1)) {
@@ -118,7 +113,7 @@ struct PublishOptions {
     int qos;
     unsigned char retained;
     unsigned char dup;
-    unsigned short msg_id;
+    unsigned short packet_id;
 };
 
 static PublishOptions parse_publish_options(lua_State *L, int idx) {
@@ -143,9 +138,9 @@ static PublishOptions parse_publish_options(lua_State *L, int idx) {
     }
     lua_pop(L, 1);
 
-    lua_getfield(L, idx, "id");
+    lua_getfield(L, idx, "packet_id");
     if (lua_isnumber(L, -1)) {
-        options.msg_id = (unsigned short) lua_tointeger(L, -1);
+        options.packet_id = (unsigned short) lua_tointeger(L, -1);
     }
     lua_pop(L, 1);
 
@@ -205,7 +200,6 @@ static int serialize_publish(lua_State *L) {
     int len = 0;
     int est_len = buff_len(0);
 
-
     int n = lua_gettop(L);
     if (n < 2) {
         luaL_error(L, "invalid parameters");
@@ -226,7 +220,7 @@ static int serialize_publish(lua_State *L) {
     luaL_buffinitsize(L, &result, (size_t) est_len);
 
     len = MQTTSerialize_publish((unsigned char *) result.b, est_len, options.dup,
-                                options.qos, options.retained, options.msg_id,
+                                options.qos, options.retained, options.packet_id,
                                 make_MQTTString(topic), payload, payload_len);
     if (len <= 0) {
         luaL_error(L, "failed to serialize publish");
@@ -239,18 +233,30 @@ static int serialize_subscribe(lua_State *L) {
     luaL_Buffer result;
     int len = 0;
     int qos = 0;
+    int packet_id = 1;
     int est_len = buff_len(0);
     MQTTString topic;
 
-    luaL_checktype(L, 1, LUA_TSTRING);
-    topic = make_MQTTString((char *) lua_tostring(L, 1));
-    luaL_buffinitsize(L, &result, (size_t) est_len);
+    int n = lua_gettop(L);
+    if (n < 1) {
+        luaL_error(L, "not enough parameters, at least topic needed");
+    }
+    if (n >= 1) {
+        luaL_checktype(L, 1, LUA_TSTRING);
+        topic = make_MQTTString((char *) lua_tostring(L, 1));
+        luaL_buffinitsize(L, &result, (size_t) est_len);
+    }
+    if (n >= 2) {
+        luaL_checktype(L, 2, LUA_TNUMBER);
+        qos = (int) lua_tointeger(L, 2);
+    }
+    if (n >= 3) {
+        luaL_checktype(L, 3, LUA_TNUMBER);
+        packet_id = (int) lua_tointeger(L, 3);
+    }
 
-    luaL_checktype(L, 2, LUA_TNUMBER);
-    qos = (int) lua_tointeger(L, 2);
-
-    //todo
-    len = MQTTSerialize_subscribe((unsigned char *) result.b, est_len, 0, 0, 1, &topic, &qos);
+    len = MQTTSerialize_subscribe((unsigned char *) result.b, est_len, 0,
+                                  (unsigned short) packet_id, 1, &topic, &qos);
     if (len <= 0) {
         luaL_error(L, "failed to serialize subscribe");
     }
@@ -291,6 +297,40 @@ static int serialize_unsubscribe(lua_State *L) {
     return 1;
 }
 
+static int serialize_ack(lua_State *L) {
+    luaL_Buffer result;
+    int len = 0;
+    int est_len = buff_len(0);
+    luaL_buffinitsize(L, &result, (size_t) est_len);
+    int type = 0, dup = 0, packet_id = 0;
+
+    int n = lua_gettop(L);
+    if (n < 1) {
+        luaL_error(L, "not enough parameters, at least topic needed");
+    }
+    if (n >= 1) {
+        luaL_checktype(L, 1, LUA_TNUMBER);
+        type = (int) lua_tointeger(L, 1);
+    }
+    if (n >= 2) {
+        luaL_checktype(L, 2, LUA_TBOOLEAN);
+        dup = (int) lua_toboolean(L, 2);
+    }
+    if (n >= 3) {
+        luaL_checktype(L, 3, LUA_TNUMBER);
+        packet_id = (int) lua_tointeger(L, 3);
+    }
+
+    len = MQTTSerialize_ack((unsigned char *) result.b, est_len,
+                            (unsigned char) type, (unsigned char) (dup ? 1 : 0),
+                            (unsigned short) packet_id);
+    if (len <= 0) {
+        luaL_error(L, "failed to serialize ack");
+    }
+    luaL_pushresultsize(&result, (size_t) len);
+    return 1;
+}
+
 static int deserialize_ack(lua_State *L) {
     unsigned short packetid;
     unsigned char dup = 0, type;
@@ -300,7 +340,7 @@ static int deserialize_ack(lua_State *L) {
             &type, &dup, &packetid,
             (unsigned char *) lua_tostring(L, 1),
             luaL_len(L, 1)) == 1);
-    lua_pushnumber(L, type);
+    lua_pushboolean(L, dup);
     lua_pushnumber(L, packetid);
     return 3;
 }
@@ -327,6 +367,7 @@ static const struct luaL_Reg mqttpacket[] = {
         {"serialize_subscribe",   serialize_subscribe},
         {"deserialize_suback",    deserialize_suback},
         {"serialize_unsubscribe", serialize_unsubscribe},
+        {"serialize_ack",         serialize_ack},
         {"deserialize_ack",       deserialize_ack},
         {"serialize_disconnect",  serialize_disconnect},
         {NULL, NULL}
