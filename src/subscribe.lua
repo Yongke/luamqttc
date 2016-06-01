@@ -1,6 +1,5 @@
-package.cpath = package.cpath .. ';/Users/yongke/IdeaProjects/luamqttc/build/?.dylib'
 local assert = assert
-local mqttclient = require("mqttclient")
+local mqttclient = require("client")
 
 local opts = {
     client_id = "lua001",
