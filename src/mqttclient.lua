@@ -8,7 +8,6 @@ local print = print
 local table = table
 local table_insert = table.insert
 
-
 local function range(a, b, step)
     if not b then
         b = a
@@ -151,7 +150,6 @@ _M.subscribe = function(self, topic, qos, callback, timeout)
             print(type, data)
         end
     end
-
 
     return nil, "suback is wrong"
 end

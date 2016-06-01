@@ -319,7 +319,7 @@ static int serialize_disconnect(lua_State *L) {
     return 1;
 }
 
-static const struct luaL_Reg luamqttc[] = {
+static const struct luaL_Reg mqttpacket[] = {
         {"serialize_connect",     serialize_connect},
         {"deserialize_connack",   deserialize_connack},
         {"serialize_pingreq",     serialize_pingreq},
@@ -333,6 +333,6 @@ static const struct luaL_Reg luamqttc[] = {
 };
 
 int luaopen_mqttpacket(lua_State *L) {
-    luaL_newlib(L, luamqttc);
+    luaL_newlib(L, mqttpacket);
     return 1;
 }
