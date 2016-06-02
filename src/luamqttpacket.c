@@ -1,4 +1,5 @@
 #include <memory.h>
+#include <MQTTPacket.h>
 
 #include "lua.h"
 #include "lauxlib.h"
@@ -229,10 +230,37 @@ static int serialize_publish(lua_State *L) {
     return 1;
 }
 
+static int deserialize_publish(lua_State *L) {
+    int result = 0, qos = 128;
+    unsigned char dup, retained;
+    unsigned short packet_id;
+
+    MQTTString topic_name;
+    unsigned char *payload;
+    int payload_len;
+
+    luaL_checktype(L, 1, LUA_TSTRING);
+    result = (1 == MQTTDeserialize_publish(
+            &dup, &qos, &retained, &packet_id, &topic_name, &payload, &payload_len,
+            (unsigned char *) lua_tostring(L, 1), luaL_len(L, 1)));
+
+    lua_pushboolean(L, result);
+    if (result) {
+        lua_pushlstring(L, topic_name.lenstring.data, (size_t) topic_name.lenstring.len);
+        lua_pushlstring(L, (const char *) payload, (size_t) payload_len);
+        lua_pushinteger(L, packet_id);
+        lua_pushboolean(L, dup);
+        lua_pushinteger(L, qos);
+        lua_pushboolean(L, retained);
+        return 7;
+    }
+    return 1;
+}
+
 static int serialize_subscribe(lua_State *L) {
     luaL_Buffer result;
     int len = 0;
-    int qos = 0;
+    int qos = 128;
     int packet_id = 1;
     int est_len = buff_len(0);
     MQTTString topic;
@@ -267,10 +295,10 @@ static int serialize_subscribe(lua_State *L) {
 
 static int deserialize_suback(lua_State *L) {
     int count = 0, grantedQoS = 128;
-    unsigned short packetid;
+    unsigned short packet_id;
 
     luaL_checktype(L, 1, LUA_TSTRING);
-    if (MQTTDeserialize_suback(&packetid, 1, &count, &grantedQoS,
+    if (MQTTDeserialize_suback(&packet_id, 1, &count, &grantedQoS,
                                (unsigned char *) lua_tostring(L, 1), luaL_len(L, 1)) == 1)
 
         lua_pushboolean(L, grantedQoS != 128);
@@ -332,16 +360,16 @@ static int serialize_ack(lua_State *L) {
 }
 
 static int deserialize_ack(lua_State *L) {
-    unsigned short packetid;
+    unsigned short packet_id;
     unsigned char dup = 0, type;
 
     luaL_checktype(L, 1, LUA_TSTRING);
     lua_pushboolean(L, MQTTDeserialize_ack(
-            &type, &dup, &packetid,
+            &type, &dup, &packet_id,
             (unsigned char *) lua_tostring(L, 1),
             luaL_len(L, 1)) == 1);
     lua_pushboolean(L, dup);
-    lua_pushnumber(L, packetid);
+    lua_pushnumber(L, packet_id);
     return 3;
 }
 
@@ -364,6 +392,7 @@ static const struct luaL_Reg mqttpacket[] = {
         {"deserialize_connack",   deserialize_connack},
         {"serialize_pingreq",     serialize_pingreq},
         {"serialize_publish",     serialize_publish},
+        {"deserialize_publish",   deserialize_publish},
         {"serialize_subscribe",   serialize_subscribe},
         {"deserialize_suback",    deserialize_suback},
         {"serialize_unsubscribe", serialize_unsubscribe},

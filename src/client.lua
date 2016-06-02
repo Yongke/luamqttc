@@ -3,42 +3,35 @@ local mqttpacket = require "mqttpacket"
 local timer = require "luamqttc/timer"
 
 local string, math = string, math
-local assert, type = assert, type
-local print = print
+local type = type
 local table = table
 local table_insert = table.insert
+local pairs = pairs
 local MAX_PACKET_ID = 65535
+local gassert = assert
+local setmetatable = setmetatable
 
+------------------------------------
+-- Utility functions below
+------------------------------------
 local assert = function(x, err)
-    return assert(x, string.format("error message: %s", err or "unknown"))
+    return gassert(x, string.format("error message: %s", err or "unknown"))
 end
 
-local function range(a, b, step)
-    if not b then
-        b = a
-        a = 1
+local split = function(str, delimiter)
+    if str == nil or str == '' or delimiter == nil then
+        return nil
     end
-    step = step or 1
-    local f =
-    step > 0 and
-            function(_, lastvalue)
-                local nextvalue = lastvalue + step
-                if nextvalue <= b then return nextvalue end
-            end or
-            step < 0 and
-            function(_, lastvalue)
-                local nextvalue = lastvalue + step
-                if nextvalue >= b then return nextvalue end
-            end or
-            function(_, lastvalue) return lastvalue end
-    return f, nil, a - step
+    local result = {}
+    for match in (str .. delimiter):gmatch("(.-)" .. delimiter) do
+        table_insert(result, match)
+    end
+    return result
 end
 
-local function print_bytes(data)
-    for i in range(1, #data) do
-        print(string.byte(data, i))
-    end
-end
+------------------------------------
+-- API functions below
+------------------------------------
 
 local _M = {
     CONNECT = 1,
@@ -54,16 +47,8 @@ local _M = {
     UNSUBACK = 11,
     PINGREQ = 12,
     PINGRESP = 13,
-    DISCONNECT = 14,
-
-    -- subscribe handlers
-    subscribe_callbacks = {}
+    DISCONNECT = 14
 }
-
-
-------------------------------------
--- API functions below
-------------------------------------
 
 -- Options table:
 --  username: string or nil,
@@ -72,12 +57,15 @@ local _M = {
 --  clean_session: true or false
 --  will_flag: true or false
 --  will_options: table
-_M.new = function(self, client_id, opts)
+_M.new = function(client_id, opts)
     assert(client_id and type(client_id) == "string")
-    self.opts = opts or {}
-    self.opts.client_id = client_id
-    self.packet_id = 0
-    return self
+    local m = {}
+    m.opts = opts or {}
+    m.opts.client_id = client_id
+    m.packet_id = 0
+    -- subscribe handlers
+    m.subscribe_callbacks = {}
+    return setmetatable(m, { __index = _M })
 end
 
 _M.connect = function(self, host, port, timeout)
@@ -128,14 +116,21 @@ _M.subscribe = function(self, topic, qos, callback, timeout)
     local req = mqttpacket.serialize_subscribe(topic, qos or 0, self:next_packet_id())
     local ok, err = self:send(req)
     assert(ok, err)
+    self.subscribe_callbacks[topic] = callback
 
     local type, data = self:wait_packet(self.SUBACK)
     assert(type, data)
     local ok, granted_qos = mqttpacket.deserialize_suback(data)
     assert(ok, granted_qos)
 
-    self.subscribe_callbacks[topic] = callback
     return true
+end
+
+_M.message_loop = function(self, timeout)
+    self:settimeout(timeout)
+    repeat
+        local type, data = self:cycle_packet()
+    until (type == nil) -- timeout or other connection error
 end
 
 _M.unsubscribe = function(self, timeout)
@@ -149,6 +144,7 @@ _M.disconnect = function(self, timeout)
     local ok, err = self:send(req)
     assert(ok, err)
 
+    self.transport:close()
     return true
 end
 
@@ -209,10 +205,12 @@ end
 _M.cycle_packet = function(self)
     local type, data = self:read_packet()
     if type == self.PUBLISH then
-
+        local ok, topic, message = mqttpacket.deserialize_publish(data)
+        assert(ok)
+        self:handle_callbacks(topic, data)
     elseif type == self.PUBREC then
         local ok, dup, packet_id = mqttpacket.deserialize_ack(data)
-        assert(ok, packet_id)
+        assert(ok)
         local data1 = mqttpacket.serialize_ack(self.PUBREL, false, packet_id)
         self:send(data1)
     end
@@ -243,6 +241,36 @@ _M.wait_ack = function(self, type)
     local ok, dup, packet_id = mqttpacket.deserialize_ack(data)
     assert(ok, packet_id)
     return dup, packet_id
+end
+
+_M.handle_callbacks = function(self, topic, data)
+    for filter, cb in pairs(self.subscribe_callbacks) do
+        if self:topic_match(filter, topic) then
+            cb(topic, data)
+        end
+    end
+end
+
+_M.topic_match = function(self, filter, name)
+    if filter == name then
+        return true
+    end
+
+    local t1 = split(filter, "/")
+    local t2 = split(name, "/")
+    local len1, len2 = #t1, #t2
+
+    local i = 1
+    repeat
+        local item_match = (t1[i] == t2[i])
+                or (t1[i] == "+" and t2[i] ~= nil and len1 == len2)
+                or (t1[i] == "#" and (t2[i] ~= nil or (t2[i] == nil and t2[i - 1] ~= nil)))
+        if not item_match then
+            return false
+        end
+        i = i + 1
+    until (i > len1)
+    return true
 end
 
 return _M
