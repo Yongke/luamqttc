@@ -57,6 +57,11 @@ local _M = {
 --  clean_session: true or false
 --  will_flag: true or false
 --  will_options: table
+--   topic_name: string
+--   message: string
+--   ratained: true or false
+--   qos: 0, 1, 2
+
 _M.new = function(client_id, opts)
     assert(client_id and type(client_id) == "string")
     local m = {}
@@ -86,9 +91,9 @@ _M.connect = function(self, host, port, timeout)
 end
 
 -- Options table:
--- qos: 0, 1 or 2 (0 by default)
--- retained: true or false
--- dup: true or false
+--  qos: 0, 1 or 2 (0 by default)
+--  retained: true or false
+--  dup: true or false
 _M.publish = function(self, topic, message, opts, timeout)
     local opts = opts or {}
     self:settimeout(timeout)
@@ -126,6 +131,7 @@ _M.subscribe = function(self, topic, qos, callback, timeout)
     return true
 end
 
+-- negative timeout means forever until connect closed or other error
 _M.message_loop = function(self, timeout)
     self:settimeout(timeout)
     repeat

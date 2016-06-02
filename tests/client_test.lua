@@ -19,7 +19,8 @@ local callback = function(topic, data)
     table.insert(cb_buf, { topic, data })
 end
 
-local unit = function()
+local unittest = function()
+    print("Unit testing")
     local t = {
         { "+/+", "a/b", true },
         { "+/+", "a/b/c", false },
@@ -78,12 +79,80 @@ local retained_message = function()
     assert(aclient:subscribe(wildtopics[6], 2, callback))
     aclient:message_loop(timeout)
     aclient:disconnect()
-
     assert(#cb_buf == 3)
+
+    cb_buf = {}
+    assert(aclient:connect(host, port, timeout))
+    assert(aclient:publish(topics[2], "", { qos = 0, retained = true }))
+    assert(aclient:publish(topics[3], "", { qos = 1, retained = true }))
+    assert(aclient:publish(topics[4], "", { qos = 2, retained = true }))
+
+    assert(aclient:subscribe(wildtopics[6], 2, callback))
+    aclient:message_loop(timeout)
+    aclient:disconnect()
+    assert(#cb_buf == 0)
 
     print("Retained message testing finished")
 end
 
-unit()
+local offline_message_queueing = function()
+    print("Offline message queueing test")
+
+    cb_buf = {}
+    local aclient = mqttclient.new("myclientid", { clean_session = false })
+    assert(aclient:connect(host, port, timeout))
+    assert(aclient:subscribe(wildtopics[6], 2, callback))
+    aclient:disconnect()
+
+    local bclient = mqttclient.new("myclientid2") -- clean session by default
+    assert(bclient:connect(host, port, timeout))
+    assert(bclient:publish(topics[2], "qos 0"))
+    assert(bclient:publish(topics[3], "qos 1", { qos = 1 }))
+    assert(bclient:publish(topics[4], "qos 2", { qos = 2 }))
+    bclient:message_loop(timeout)
+    bclient:disconnect()
+
+    assert(aclient:connect(host, port, timeout))
+    aclient:message_loop(timeout)
+    aclient:disconnect()
+
+    if #cb_buf == 2 then
+        print("This server is not queueing QoS 0 messages for offline clients")
+    elseif #cb_buf == 3 then
+        print("This server is queueing QoS 0 messages for offline clients")
+    else
+        assert(false)
+    end
+    print("Offline message queueing test finished")
+end
+
+local will_message = function()
+    print("Will message test")
+    cb_buf = {}
+    local aclient = mqttclient.new("myclientid", {
+        clean_session = true,
+        will_flag = true,
+        will_options =
+        { topic_name = topics[3], message = "client not disconnected" }
+    })
+    assert(aclient:connect(host, port, timeout))
+
+    local bclient = mqttclient.new("myclientid2", { clean_session = false })
+    assert(bclient:connect(host, port, timeout))
+    assert(bclient:subscribe(topics[3], 2, callback))
+
+    -- terminate the connection
+    aclient.transport:close()
+
+    bclient:message_loop(timeout)
+    bclient:disconnect()
+
+    assert(#cb_buf == 1)
+    print("Will message test finished")
+end
+
+unittest()
 basic()
 retained_message()
+offline_message_queueing()
+will_message()
