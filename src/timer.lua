@@ -1,13 +1,14 @@
 local socket = require("socket")
-local os = os
+local os, setmetatable= os, setmetatable
 local difftime = os.difftime
 
 local _M = {}
 
-_M.new = function(self, timeout)
-    self.start = socket.gettime()
-    self.timeout = timeout
-    return self
+_M.new = function(timeout)
+    local m = {}
+    m.start = socket.gettime()
+    m.timeout = timeout
+    return setmetatable(m, { __index = _M })
 end
 
 _M.escaped = function(self)

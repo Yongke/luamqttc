@@ -13,10 +13,15 @@ local wildtopics = { "TopicA/+", "+/C", "#", "/#", "/+", "+/+", "TopicA/#" }
 local nosubscribe_topics = { "nosubscribe" }
 
 local cb_buf = {}
+local callback = function(topic, data, packet_id, dup, qos, retained)
+    print("cb 1: ", topic)
+    table.insert(cb_buf, { topic, data, qos })
+end
 
-local callback = function(topic, data)
-    print("cb: ", topic)
-    table.insert(cb_buf, { topic, data })
+local cb_buf2 = {}
+local callback2 = function(topic, data)
+    print("cb 2: ", topic)
+    table.insert(cb_buf2, { topic, data })
 end
 
 local unittest = function()
@@ -40,7 +45,7 @@ local unittest = function()
 end
 
 local basic = function()
-    print("Basic testing")
+    print("Basic test")
     cb_buf = {}
     local aclient = mqttclient.new("myclientid")
 
@@ -63,11 +68,11 @@ local basic = function()
     -- previous transport connection(tcp) was closed by server & start new
     assert(local_port ~= local_port1)
     aclient:disconnect()
-    print("Basic testing finished")
+    print("Basic test finished")
 end
 
 local retained_message = function()
-    print("Retained message testing")
+    print("Retained message test")
     cb_buf = {}
 
     local aclient = mqttclient.new("myclientid", { clean_session = true })
@@ -92,7 +97,7 @@ local retained_message = function()
     aclient:disconnect()
     assert(#cb_buf == 0)
 
-    print("Retained message testing finished")
+    print("Retained message test finished")
 end
 
 local offline_message_queueing = function()
@@ -151,8 +156,54 @@ local will_message = function()
     print("Will message test finished")
 end
 
+local overlapping_subscriptions = function()
+    print("Overlapping subscriptions test")
+    cb_buf = {}
+
+    local aclient = mqttclient.new("myclientid")
+    assert(aclient:connect(host, port, timeout))
+    assert(aclient:subscribe(wildtopics[7], 2, callback))
+    assert(aclient:subscribe(wildtopics[1], 1, callback))
+
+    assert(aclient:publish(topics[4], "overlapping topic filters", { qos = 2 }))
+    aclient:message_loop(timeout)
+    aclient:disconnect()
+
+    assert((#cb_buf == 1 and cb_buf[1][3] == 2) or #cb_buf == 2)
+    print("Overlapping subscriptions test finished")
+end
+
+local keepalive_test = function()
+    print("Keepalive test")
+
+    cb_buf = {}
+    local aclient = mqttclient.new("myclientid", {
+        clean_session = true,
+        keep_alive = 5, -- 5 seconds
+        will_flag = true,
+        will_options =
+        { topic_name = topics[5], message = "keepalive expiry" }
+    })
+    assert(aclient:connect(host, port, timeout))
+
+    local bclient = mqttclient.new("myclientid2", {
+        clean_session = false,
+        keep_alive = 3
+    })
+    assert(bclient:connect(host, port, timeout))
+    assert(bclient:subscribe(topics[5], 2, callback))
+
+    bclient:message_loop(15)
+    bclient:disconnect()
+
+    assert(#cb_buf == 1)
+    print("Keepalive test finished")
+end
+
 unittest()
 basic()
 retained_message()
 offline_message_queueing()
 will_message()
+overlapping_subscriptions()
+keepalive_test()

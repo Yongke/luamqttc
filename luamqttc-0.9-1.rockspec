@@ -2,7 +2,7 @@ package = "luamqttc"
 version = "0.9-1"
 
 source = {
-    url = "..." -- We don't have one yet
+    url = "..."
 }
 
 description = {

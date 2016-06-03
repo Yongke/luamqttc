@@ -77,6 +77,7 @@ _M.connect = function(self, host, port, timeout)
     local sock = assert(socket.connect(host, port))
     self.transport = sock
     self:settimeout(timeout)
+    self:setkatimeout()
 
     local req = mqttpacket.serialize_connect(self.opts)
     local ok, err = self:send(req)
@@ -131,12 +132,17 @@ _M.subscribe = function(self, topic, qos, callback, timeout)
     return true
 end
 
--- negative timeout means forever until connect closed or other error
 _M.message_loop = function(self, timeout)
-    self:settimeout(timeout)
-    repeat
-        local type, data = self:cycle_packet()
-    until (type == nil) -- timeout or other connection error
+    if timeout then
+        self:settimeout(timeout)
+        repeat
+            local type, data = self:cycle_packet()
+        until self.timer:remain() < 0 or (type == nil and data ~= "timeout")
+    else -- loop forever
+        repeat
+            local type, data = self:cycle_packet()
+        until type == nil and data ~= "timeout"
+    end
 end
 
 _M.unsubscribe = function(self, timeout)
@@ -157,31 +163,47 @@ end
 ------------------------------------
 -- Supporting functions below
 ------------------------------------
+_M.setkatimeout = function(self)
+    self.keepalive_timer = timer.new(self.opts.keep_alive or 60)
+end
 
 _M.settimeout = function(self, timeout)
     assert(self.transport)
-    self.timer = timer:new(timeout or 5)
+    self.timer = timer.new(timeout or 5)
     self.transport:settimeout(timeout)
 end
 
 _M.send = function(self, data)
-    self.transport:settimeout(self.timer:remain())
+    local remain = self.timer:remain()
+    if remain < 0 then
+        return nil, "timeout"
+    end
+    self.transport:settimeout(remain)
+
+    -- reset the keepalive timeout
+    self:setkatimeout()
+
     return self.transport:send(data)
 end
 
 _M.receive = function(self, pattern)
-    self.transport:settimeout(self.timer:remain())
     return self.transport:receive(pattern)
 end
 
 _M.read_packet = function(self)
     local buff = {}
 
+    -- reset the tansport timeout to a small one,
+    -- logic here is getting the whole packet or return immediately
+    self.transport:settimeout(0.1)
     local data, err = self:receive(1)
     if not data then
         return nil, err
     end
     table_insert(buff, data)
+
+    -- make sure following data in save packet are received in one packet
+    self.transport:settimeout(-1)
 
     -- byte >> 4, workaround
     local type = math.floor(string.byte(data, 1) / 2 ^ 4)
@@ -211,16 +233,26 @@ end
 _M.cycle_packet = function(self)
     local type, data = self:read_packet()
     if type == self.PUBLISH then
-        local ok, topic, message = mqttpacket.deserialize_publish(data)
+        local ok, topic, message, packet_id, dup, qos, retained = mqttpacket.deserialize_publish(data)
         assert(ok)
-        self:handle_callbacks(topic, data)
+        self:handle_callbacks(topic, message, packet_id, dup, qos, retained)
     elseif type == self.PUBREC then
         local ok, dup, packet_id = mqttpacket.deserialize_ack(data)
         assert(ok)
-        local data1 = mqttpacket.serialize_ack(self.PUBREL, false, packet_id)
-        self:send(data1)
+        local ackdata = mqttpacket.serialize_ack(self.PUBREL, false, packet_id)
+        local ok, err = self:send(ackdata)
+        assert(ok, err)
     end
+    self:keepalive()
     return type, data
+end
+
+_M.keepalive = function(self)
+    if self.keepalive_timer:remain() < 0 then
+        local data = mqttpacket.serialize_pingreq()
+        local ok, err = self:send(data)
+        assert(ok, err)
+    end
 end
 
 _M.wait_packet = function(self, type)
@@ -228,7 +260,6 @@ _M.wait_packet = function(self, type)
     repeat
         exptype, data = self:cycle_packet()
     until (type == exptype or exptype == nil)
-
     return exptype, data
 end
 
@@ -249,10 +280,11 @@ _M.wait_ack = function(self, type)
     return dup, packet_id
 end
 
-_M.handle_callbacks = function(self, topic, data)
+_M.handle_callbacks = function(self, topic, data, ...)
     for filter, cb in pairs(self.subscribe_callbacks) do
         if self:topic_match(filter, topic) then
-            cb(topic, data)
+            cb(topic, data, ...)
+            return
         end
     end
 end
