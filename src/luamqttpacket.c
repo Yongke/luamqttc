@@ -41,7 +41,7 @@ static MQTTPacket_willOptions parse_will_options(lua_State *L, int idx, unsigned
         lua_pop(L, 1);
 
         lua_getfield(L, idx, "retained");
-        if (lua_isstring(L, -1)) {
+        if (lua_isboolean(L, -1)) {
             options.retained = (unsigned char) (lua_toboolean(L, -1) ? 1 : 0);
         }
         lua_pop(L, 1);
@@ -308,15 +308,24 @@ static int deserialize_suback(lua_State *L) {
 
 static int serialize_unsubscribe(lua_State *L) {
     luaL_Buffer result;
+    int packet_id = 0;
     int len = 0;
     int est_len = buff_len(0);
     MQTTString topic;
 
+    if (lua_gettop(L) < 2) {
+        luaL_error(L, "failed to serialize unsubscribe, not enough parameters");
+    }
+
     luaL_checktype(L, 1, LUA_TSTRING);
     topic = make_MQTTString((char *) lua_tostring(L, 1));
     luaL_buffinitsize(L, &result, (size_t) est_len);
-    //todo: packet id?
-    len = MQTTSerialize_unsubscribe((unsigned char *) result.b, est_len, 0, 0, 1, &topic);
+
+    luaL_checktype(L, 2, LUA_TNUMBER);
+    packet_id = (int) lua_tointeger(L, 2);
+
+    len = MQTTSerialize_unsubscribe((unsigned char *) result.b, est_len, 0,
+                                    (unsigned short) packet_id, 1, &topic);
     if (len <= 0) {
         luaL_error(L, "failed to serialize unsubscribe");
     }

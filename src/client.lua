@@ -138,15 +138,21 @@ _M.message_loop = function(self, timeout)
         repeat
             local type, data = self:cycle_packet()
         until self.timer:remain() < 0 or (type == nil and data ~= "timeout")
-    else -- loop forever
+    else
         repeat
             local type, data = self:cycle_packet()
         until type == nil and data ~= "timeout"
     end
 end
 
-_M.unsubscribe = function(self, timeout)
+_M.unsubscribe = function(self, topic, timeout)
     self:settimeout(timeout)
+
+    local req = mqttpacket.serialize_unsubscribe(topic, self:next_packet_id())
+    local ok, err = self:send(req)
+    assert(ok, err)
+    self:wait_ack(self.UNSUBACK)
+    return true
 end
 
 _M.disconnect = function(self, timeout)
@@ -259,7 +265,8 @@ _M.wait_packet = function(self, type)
     local exptype, data
     repeat
         exptype, data = self:cycle_packet()
-    until (type == exptype or exptype == nil)
+    until self.timer:remain() < 0 or type == exptype
+            or (exptype == nil and data ~= "timeout")
     return exptype, data
 end
 

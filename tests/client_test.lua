@@ -18,12 +18,6 @@ local callback = function(topic, data, packet_id, dup, qos, retained)
     table.insert(cb_buf, { topic, data, qos })
 end
 
-local cb_buf2 = {}
-local callback2 = function(topic, data)
-    print("cb 2: ", topic)
-    table.insert(cb_buf2, { topic, data })
-end
-
 local unittest = function()
     print("Unit testing")
     local t = {
@@ -67,6 +61,9 @@ local basic = function()
     local _, local_port1 = aclient.transport:getsockname()
     -- previous transport connection(tcp) was closed by server & start new
     assert(local_port ~= local_port1)
+
+    assert(aclient:unsubscribe(topics[1]))
+
     aclient:disconnect()
     print("Basic test finished")
 end
@@ -138,7 +135,11 @@ local will_message = function()
         clean_session = true,
         will_flag = true,
         will_options =
-        { topic_name = topics[3], message = "client not disconnected" }
+        {
+            topic_name = topics[3],
+            message = "client not disconnected",
+            retained = true
+        }
     })
     assert(aclient:connect(host, port, timeout))
 
@@ -200,6 +201,29 @@ local keepalive_test = function()
     print("Keepalive test finished")
 end
 
+local redelivery_on_reconnect = function()
+    cb_buf = {}
+
+    local aclient = mqttclient.new("myclientid", { clean_session = false })
+    assert(aclient:connect(host, port, timeout))
+    assert(aclient:subscribe(wildtopics[7], 2, callback))
+    aclient.transport:close()
+
+    local bclient = mqttclient.new("myclientid2")
+    assert(bclient:connect(host, port, timeout))
+
+    assert(bclient:publish(topics[2], "qos 1", { qos = 1 }))
+    assert(bclient:publish(topics[4], "qos 2", { qos = 2 }))
+    bclient:disconnect()
+
+    assert(#cb_buf == 0)
+    -- reconnect
+    assert(aclient:connect(host, port, timeout))
+    aclient:message_loop(timeout)
+    aclient:disconnect()
+    assert(#cb_buf == 2)
+end
+
 unittest()
 basic()
 retained_message()
@@ -207,3 +231,4 @@ offline_message_queueing()
 will_message()
 overlapping_subscriptions()
 keepalive_test()
+redelivery_on_reconnect()
