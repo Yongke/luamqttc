@@ -2,7 +2,7 @@ package = "luamqttc"
 version = "0.9-1"
 
 source = {
-    url = "..."
+    url = "https://github.com/Yongke/luamqttc"
 }
 
 description = {
@@ -10,11 +10,12 @@ description = {
     detailed = [[
         A lua mqtt client which is based on the paho Embedded MQTT C Client Libraries.
     ]],
-    homepage = "http://...",
-    license = "EPL"
+    homepage = "https://github.com/Yongke/luamqttc",
+    license = "EPL/EDL"
 }
+
 dependencies = {
-    "lua >= 5.1"
+    "lua >= 5.1", "luasocket", "luasec"
 }
 
 build = {

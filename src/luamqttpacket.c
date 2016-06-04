@@ -1,21 +1,14 @@
-#include <memory.h>
-#include <MQTTPacket.h>
-
-#include "lua.h"
-#include "lauxlib.h"
-
-#include "MQTTPacket.h"
-#include "MQTTConnect.h"
-
 #include "luamqttpacket.h"
 
 static int buff_len(int est) {
     return (est / LUAL_BUFFERSIZE + 1) * LUAL_BUFFERSIZE;
 }
 
-static MQTTString make_MQTTString(const char *cstring) {
+static MQTTString make_MQTTString(const char *str, int len) {
     MQTTString mqttString = MQTTString_initializer;
-    mqttString.cstring = (char *) cstring;
+    mqttString.cstring = NULL;
+    mqttString.lenstring.data = (char *) str;
+    mqttString.lenstring.len = len;
     return mqttString;
 }
 
@@ -26,7 +19,7 @@ static MQTTPacket_willOptions parse_will_options(lua_State *L, int idx, unsigned
 
         lua_getfield(L, idx, "topic_name");
         if (lua_isstring(L, -1)) {
-            options.topicName = make_MQTTString(lua_tostring(L, -1));
+            options.topicName = make_MQTTString(lua_tostring(L, -1), luaL_len(L, -1));
         } else {
             luaL_error(L, "invalid topic_name");
         }
@@ -34,7 +27,7 @@ static MQTTPacket_willOptions parse_will_options(lua_State *L, int idx, unsigned
 
         lua_getfield(L, idx, "message");
         if (lua_isstring(L, -1)) {
-            options.message = make_MQTTString(lua_tostring(L, -1));
+            options.message = make_MQTTString(lua_tostring(L, -1), luaL_len(L, -1));
         } else {
             luaL_error(L, "invalid message");
         }
@@ -64,7 +57,7 @@ static MQTTPacket_connectData parse_connect_options(lua_State *L, int idx) {
 
     lua_getfield(L, idx, "client_id");
     if (lua_isstring(L, -1)) {
-        options.clientID = make_MQTTString(lua_tostring(L, -1));
+        options.clientID = make_MQTTString(lua_tostring(L, -1), luaL_len(L, -1));
     } else {
         luaL_error(L, "invalid client_id");
     }
@@ -72,13 +65,13 @@ static MQTTPacket_connectData parse_connect_options(lua_State *L, int idx) {
 
     lua_getfield(L, idx, "username");
     if (lua_isstring(L, -1)) {
-        options.username = make_MQTTString(lua_tostring(L, -1));
+        options.username = make_MQTTString(lua_tostring(L, -1), luaL_len(L, -1));
     }
     lua_pop(L, 1);
 
     lua_getfield(L, idx, "password");
     if (lua_isstring(L, -1)) {
-        options.password = make_MQTTString(lua_tostring(L, -1));
+        options.password = make_MQTTString(lua_tostring(L, -1), luaL_len(L, -1));
     }
     lua_pop(L, 1);
 
@@ -107,15 +100,6 @@ static MQTTPacket_connectData parse_connect_options(lua_State *L, int idx) {
 
     return options;
 }
-
-typedef struct PublishOptions PublishOptions;
-
-struct PublishOptions {
-    int qos;
-    unsigned char retained;
-    unsigned char dup;
-    unsigned short packet_id;
-};
 
 static PublishOptions parse_publish_options(lua_State *L, int idx) {
     PublishOptions options = {0, 0, 0, 0};
@@ -153,7 +137,9 @@ static int serialize_connect(lua_State *L) {
 
     luaL_Buffer result;
     int len = 0;
-    int est_len = buff_len(0);
+    int est_len = buff_len(MQTTstrlen(options.clientID) + MQTTstrlen(options.username)
+                           + MQTTstrlen(options.password) + MQTTstrlen(options.will.topicName)
+                           + MQTTstrlen(options.will.message));
     luaL_buffinitsize(L, &result, (size_t) est_len);
 
     len = MQTTSerialize_connect((unsigned char *) result.b, est_len, &options);
@@ -168,11 +154,12 @@ static int serialize_connect(lua_State *L) {
 static int deserialize_connack(lua_State *L) {
     unsigned char session_present = 0;
     unsigned char connack_rc = 255;
+    int result = 0;
 
     luaL_checktype(L, 1, LUA_TSTRING);
-    MQTTDeserialize_connack(&session_present, &connack_rc,
-                            (unsigned char *) lua_tostring(L, 1), luaL_len(L, 1));
-    lua_pushboolean(L, connack_rc == 0);
+    result = (1 == MQTTDeserialize_connack(&session_present, &connack_rc,
+                                           (unsigned char *) lua_tostring(L, 1), luaL_len(L, 1)));
+    lua_pushboolean(L, result && (0 == connack_rc));
     lua_pushinteger(L, connack_rc);
     return 2;
 }
@@ -192,7 +179,7 @@ static int serialize_pingreq(lua_State *L) {
 }
 
 static int serialize_publish(lua_State *L) {
-    char *topic = NULL;
+    MQTTString topic = MQTTString_initializer;
     unsigned char *payload = NULL;
     int payload_len = 0;
     PublishOptions options = {0, 0, 0, 0};
@@ -207,7 +194,7 @@ static int serialize_publish(lua_State *L) {
     }
 
     if (lua_isstring(L, 1) && lua_isstring(L, 2)) {
-        topic = (char *) lua_tostring(L, 1);
+        topic = make_MQTTString((char *) lua_tostring(L, 1), luaL_len(L, 1));
         payload = (unsigned char *) lua_tostring(L, 2);
         payload_len = luaL_len(L, 2);
         est_len = buff_len(luaL_len(L, 1) + payload_len);
@@ -215,14 +202,14 @@ static int serialize_publish(lua_State *L) {
         luaL_error(L, "invalid parameters");
     }
 
-    if (n == 3) {
+    if (3 == n) {
         options = parse_publish_options(L, 3);
     }
     luaL_buffinitsize(L, &result, (size_t) est_len);
 
     len = MQTTSerialize_publish((unsigned char *) result.b, est_len, options.dup,
                                 options.qos, options.retained, options.packet_id,
-                                make_MQTTString(topic), payload, payload_len);
+                                topic, payload, payload_len);
     if (len <= 0) {
         luaL_error(L, "failed to serialize publish");
     }
@@ -271,7 +258,7 @@ static int serialize_subscribe(lua_State *L) {
     }
     if (n >= 1) {
         luaL_checktype(L, 1, LUA_TSTRING);
-        topic = make_MQTTString((char *) lua_tostring(L, 1));
+        topic = make_MQTTString((char *) lua_tostring(L, 1), luaL_len(L, 1));
         luaL_buffinitsize(L, &result, (size_t) est_len);
     }
     if (n >= 2) {
@@ -296,12 +283,13 @@ static int serialize_subscribe(lua_State *L) {
 static int deserialize_suback(lua_State *L) {
     int count = 0, grantedQoS = 128;
     unsigned short packet_id;
+    int result = 0;
 
     luaL_checktype(L, 1, LUA_TSTRING);
-    if (MQTTDeserialize_suback(&packet_id, 1, &count, &grantedQoS,
-                               (unsigned char *) lua_tostring(L, 1), luaL_len(L, 1)) == 1)
-
-        lua_pushboolean(L, grantedQoS != 128);
+    result = (1 == MQTTDeserialize_suback(
+            &packet_id, 1, &count, &grantedQoS,
+            (unsigned char *) lua_tostring(L, 1), luaL_len(L, 1)));
+    lua_pushboolean(L, result && (grantedQoS != 128));
     lua_pushinteger(L, grantedQoS);
     return 2;
 }
@@ -318,7 +306,7 @@ static int serialize_unsubscribe(lua_State *L) {
     }
 
     luaL_checktype(L, 1, LUA_TSTRING);
-    topic = make_MQTTString((char *) lua_tostring(L, 1));
+    topic = make_MQTTString((char *) lua_tostring(L, 1), luaL_len(L, 1));
     luaL_buffinitsize(L, &result, (size_t) est_len);
 
     luaL_checktype(L, 2, LUA_TNUMBER);
@@ -373,10 +361,10 @@ static int deserialize_ack(lua_State *L) {
     unsigned char dup = 0, type;
 
     luaL_checktype(L, 1, LUA_TSTRING);
-    lua_pushboolean(L, MQTTDeserialize_ack(
+    lua_pushboolean(L, 1 == MQTTDeserialize_ack(
             &type, &dup, &packet_id,
             (unsigned char *) lua_tostring(L, 1),
-            luaL_len(L, 1)) == 1);
+            luaL_len(L, 1)));
     lua_pushboolean(L, dup);
     lua_pushnumber(L, packet_id);
     return 3;
