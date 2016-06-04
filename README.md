@@ -2,6 +2,8 @@
 
 luamqttc is base on the paho Embedded MQTT C Client Library - MQTTPacket.
 
+It also depends on luasocket and luasec.
+
 Supported features:
 * MQTT version v3.1.1
 * Authentication
