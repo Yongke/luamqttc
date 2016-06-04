@@ -1,4 +1,5 @@
 local socket = require "socket"
+local ssl = require "ssl"
 local mqttpacket = require "mqttpacket"
 local timer = require "luamqttc/timer"
 
@@ -73,10 +74,16 @@ _M.new = function(client_id, opts)
     return setmetatable(m, { __index = _M })
 end
 
-_M.connect = function(self, host, port, timeout)
+_M.connect = function(self, host, port, connopts)
+    local connopts = connopts or {}
     local sock = assert(socket.connect(host, port))
+    if connopts.usessl then
+        sock = assert(ssl.wrap(sock, { mode = "client", protocol = "tlsv1_2" }))
+        assert(sock:dohandshake())
+    end
+
     self.transport = sock
-    self:settimeout(timeout)
+    self:settimeout(connopts.timeout)
     self:setkatimeout()
 
     local req = mqttpacket.serialize_connect(self.opts)
@@ -193,7 +200,11 @@ _M.send = function(self, data)
 end
 
 _M.receive = function(self, pattern)
-    return self.transport:receive(pattern)
+    local data, err = self.transport:receive(pattern)
+    if err == "wantread" or err == "wantwrite" then
+        err = "timeout"
+    end
+    return data, err
 end
 
 _M.read_packet = function(self)

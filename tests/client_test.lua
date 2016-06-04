@@ -43,10 +43,10 @@ local basic = function()
     cb_buf = {}
     local aclient = mqttclient.new("myclientid")
 
-    assert(aclient:connect(host, port, timeout))
+    assert(aclient:connect(host, port, {timeout = timeout}))
     aclient:disconnect()
 
-    assert(aclient:connect(host, port, timeout))
+    assert(aclient:connect(host, port, {timeout = timeout}))
     assert(aclient:subscribe(topics[1], 2, callback))
     assert(aclient:publish(topics[1], "qos 0"))
     assert(aclient:publish(topics[1], "qos 1", { qos = 1 }))
@@ -55,9 +55,9 @@ local basic = function()
     aclient:disconnect()
     assert(#cb_buf == 3)
 
-    assert(aclient:connect(host, port, timeout))
+    assert(aclient:connect(host, port, {timeout = timeout}))
     local _, local_port = aclient.transport:getsockname()
-    aclient:connect(host, port, timeout)
+    aclient:connect(host, port, {timeout = timeout})
     local _, local_port1 = aclient.transport:getsockname()
     -- previous transport connection(tcp) was closed by server & start new
     assert(local_port ~= local_port1)
@@ -73,7 +73,7 @@ local retained_message = function()
     cb_buf = {}
 
     local aclient = mqttclient.new("myclientid", { clean_session = true })
-    assert(aclient:connect(host, port, timeout))
+    assert(aclient:connect(host, port, {timeout = timeout}))
     assert(aclient:publish(topics[2], "qos 0", { qos = 0, retained = true }))
     assert(aclient:publish(topics[3], "qos 1", { qos = 1, retained = true }))
     assert(aclient:publish(topics[4], "qos 2", { qos = 2, retained = true }))
@@ -84,7 +84,7 @@ local retained_message = function()
     assert(#cb_buf == 3)
 
     cb_buf = {}
-    assert(aclient:connect(host, port, timeout))
+    assert(aclient:connect(host, port, {timeout = timeout}))
     assert(aclient:publish(topics[2], "", { qos = 0, retained = true }))
     assert(aclient:publish(topics[3], "", { qos = 1, retained = true }))
     assert(aclient:publish(topics[4], "", { qos = 2, retained = true }))
@@ -102,19 +102,19 @@ local offline_message_queueing = function()
 
     cb_buf = {}
     local aclient = mqttclient.new("myclientid", { clean_session = false })
-    assert(aclient:connect(host, port, timeout))
+    assert(aclient:connect(host, port, {timeout = timeout}))
     assert(aclient:subscribe(wildtopics[6], 2, callback))
     aclient:disconnect()
 
     local bclient = mqttclient.new("myclientid2") -- clean session by default
-    assert(bclient:connect(host, port, timeout))
+    assert(bclient:connect(host, port, {timeout = timeout}))
     assert(bclient:publish(topics[2], "qos 0"))
     assert(bclient:publish(topics[3], "qos 1", { qos = 1 }))
     assert(bclient:publish(topics[4], "qos 2", { qos = 2 }))
     bclient:message_loop(timeout)
     bclient:disconnect()
 
-    assert(aclient:connect(host, port, timeout))
+    assert(aclient:connect(host, port, {timeout = timeout}))
     aclient:message_loop(timeout)
     aclient:disconnect()
 
@@ -141,10 +141,10 @@ local will_message = function()
             retained = true
         }
     })
-    assert(aclient:connect(host, port, timeout))
+    assert(aclient:connect(host, port, {timeout = timeout}))
 
     local bclient = mqttclient.new("myclientid2", { clean_session = false })
-    assert(bclient:connect(host, port, timeout))
+    assert(bclient:connect(host, port, {timeout = timeout}))
     assert(bclient:subscribe(topics[3], 2, callback))
 
     -- terminate the connection
@@ -162,7 +162,7 @@ local overlapping_subscriptions = function()
     cb_buf = {}
 
     local aclient = mqttclient.new("myclientid")
-    assert(aclient:connect(host, port, timeout))
+    assert(aclient:connect(host, port, {timeout = timeout}))
     assert(aclient:subscribe(wildtopics[7], 2, callback))
     assert(aclient:subscribe(wildtopics[1], 1, callback))
 
@@ -185,13 +185,13 @@ local keepalive_test = function()
         will_options =
         { topic_name = topics[5], message = "keepalive expiry" }
     })
-    assert(aclient:connect(host, port, timeout))
+    assert(aclient:connect(host, port, {timeout = timeout}))
 
     local bclient = mqttclient.new("myclientid2", {
         clean_session = false,
         keep_alive = 3
     })
-    assert(bclient:connect(host, port, timeout))
+    assert(bclient:connect(host, port, {timeout = timeout}))
     assert(bclient:subscribe(topics[5], 2, callback))
 
     bclient:message_loop(15)
@@ -205,12 +205,12 @@ local redelivery_on_reconnect = function()
     cb_buf = {}
 
     local aclient = mqttclient.new("myclientid", { clean_session = false })
-    assert(aclient:connect(host, port, timeout))
+    assert(aclient:connect(host, port, {timeout = timeout}))
     assert(aclient:subscribe(wildtopics[7], 2, callback))
     aclient.transport:close()
 
     local bclient = mqttclient.new("myclientid2")
-    assert(bclient:connect(host, port, timeout))
+    assert(bclient:connect(host, port, {timeout = timeout}))
 
     assert(bclient:publish(topics[2], "qos 1", { qos = 1 }))
     assert(bclient:publish(topics[4], "qos 2", { qos = 2 }))
@@ -218,10 +218,32 @@ local redelivery_on_reconnect = function()
 
     assert(#cb_buf == 0)
     -- reconnect
-    assert(aclient:connect(host, port, timeout))
+    assert(aclient:connect(host, port, {timeout = timeout}))
     aclient:message_loop(timeout)
     aclient:disconnect()
     assert(#cb_buf == 2)
+end
+
+local connect_ssl = function()
+    cb_buf = {}
+    print("SSL test")
+
+    local host = "iot.eclipse.org"
+    local port = 8883
+    local aclient = mqttclient.new("myclientid")
+
+    assert(aclient:connect(host, port, {timeout = timeout, usessl = true}))
+    assert(aclient:subscribe(topics[1], 2, callback))
+
+    assert(aclient:publish(topics[1], "qos 0"))
+    assert(aclient:publish(topics[1], "qos 1", { qos = 1 }))
+    assert(aclient:publish(topics[1], "qos 2", { qos = 2 }))
+
+    aclient:message_loop(timeout)
+    aclient:disconnect()
+    assert(#cb_buf == 3) -- may fail, this is a public server ;-)
+
+    print("SSL test finished")
 end
 
 unittest()
@@ -232,3 +254,4 @@ will_message()
 overlapping_subscriptions()
 keepalive_test()
 redelivery_on_reconnect()
+connect_ssl()
