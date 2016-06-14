@@ -41,9 +41,7 @@ build = {
     install = {
         lua = {
             ["luamqttc.client"] = "src/client.lua",
-            ["luamqttc.timer"] = "src/timer.lua",
-            ["luamqttc.publish"] = "src/publish.lua",
-            ["luamqttc.subscribe"] = "src/subscribe.lua"
-        }
+            ["luamqttc.timer"] = "src/timer.lua"
+         }
     }
 }
