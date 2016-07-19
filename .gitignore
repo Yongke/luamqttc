@@ -1,3 +1,4 @@
 .idea
 mqttpacket.so
 *.o
+.rock

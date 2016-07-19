@@ -1,5 +1,5 @@
 package = "luamqttc"
-version = "0.9-1"
+version = "0.9-2"
 
 source = {
     url = "https://github.com/Yongke/luamqttc"
@@ -15,7 +15,7 @@ description = {
 }
 
 dependencies = {
-    "lua >= 5.1", "luasocket", "luasec"
+    "lua >= 5.2", "luasocket", "luasec"
 }
 
 build = {
