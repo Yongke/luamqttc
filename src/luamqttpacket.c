@@ -142,7 +142,7 @@ static int serialize_connect(lua_State *L) {
                            + MQTTstrlen(options.will.message));
     luaL_buffinitsize(L, &result, (size_t) est_len);
 
-    len = MQTTSerialize_connect((unsigned char *) result.b, est_len, &options);
+    len = MQTTSerialize_connect((unsigned char *) luabuffptr(result), est_len, &options);
     if (len <= 0) {
         luaL_error(L, "failed to serialize connect");
     }
@@ -170,7 +170,7 @@ static int serialize_pingreq(lua_State *L) {
     int est_len = buff_len(0);
     luaL_buffinitsize(L, &result, (size_t) est_len);
 
-    len = MQTTSerialize_pingreq((unsigned char *) result.b, est_len);
+    len = MQTTSerialize_pingreq((unsigned char *) luabuffptr(result), est_len);
     if (len <= 0) {
         luaL_error(L, "failed to serialize ping");
     }
@@ -207,7 +207,7 @@ static int serialize_publish(lua_State *L) {
     }
     luaL_buffinitsize(L, &result, (size_t) est_len);
 
-    len = MQTTSerialize_publish((unsigned char *) result.b, est_len, options.dup,
+    len = MQTTSerialize_publish((unsigned char *) luabuffptr(result), est_len, options.dup,
                                 options.qos, options.retained, options.packet_id,
                                 topic, payload, payload_len);
     if (len <= 0) {
@@ -270,7 +270,7 @@ static int serialize_subscribe(lua_State *L) {
         packet_id = (int) lua_tointeger(L, 3);
     }
 
-    len = MQTTSerialize_subscribe((unsigned char *) result.b, est_len, 0,
+    len = MQTTSerialize_subscribe((unsigned char *) luabuffptr(result), est_len, 0,
                                   (unsigned short) packet_id, 1, &topic, &qos);
     if (len <= 0) {
         luaL_error(L, "failed to serialize subscribe");
@@ -312,7 +312,7 @@ static int serialize_unsubscribe(lua_State *L) {
     luaL_checktype(L, 2, LUA_TNUMBER);
     packet_id = (int) lua_tointeger(L, 2);
 
-    len = MQTTSerialize_unsubscribe((unsigned char *) result.b, est_len, 0,
+    len = MQTTSerialize_unsubscribe((unsigned char *) luabuffptr(result), est_len, 0,
                                     (unsigned short) packet_id, 1, &topic);
     if (len <= 0) {
         luaL_error(L, "failed to serialize unsubscribe");
@@ -346,7 +346,7 @@ static int serialize_ack(lua_State *L) {
         packet_id = (int) lua_tointeger(L, 3);
     }
 
-    len = MQTTSerialize_ack((unsigned char *) result.b, est_len,
+    len = MQTTSerialize_ack((unsigned char *) luabuffptr(result), est_len,
                             (unsigned char) type, (unsigned char) (dup ? 1 : 0),
                             (unsigned short) packet_id);
     if (len <= 0) {
@@ -376,7 +376,7 @@ static int serialize_disconnect(lua_State *L) {
     int est_len = buff_len(0);
     luaL_buffinitsize(L, &result, (size_t) est_len);
 
-    len = MQTTSerialize_disconnect((unsigned char *) result.b, est_len);
+    len = MQTTSerialize_disconnect((unsigned char *) luabuffptr(result), est_len);
     if (len <= 0) {
         luaL_error(L, "failed to serialize disconnect");
     }

@@ -1,5 +1,5 @@
 package = "luamqttc"
-version = "0.9-2"
+version = "1.0-1"
 
 source = {
     url = "https://github.com/Yongke/luamqttc"
@@ -15,7 +15,7 @@ description = {
 }
 
 dependencies = {
-    "lua >= 5.2", "luasocket", "luasec"
+    "lua >= 5.1", "luasocket", "luasec"
 }
 
 build = {
@@ -23,6 +23,7 @@ build = {
     modules = {
         mqttpacket = {
             sources = {
+                "deps/lua-compat-5.2/compat-5.2.c",
                 "deps/org.eclipse.paho.mqtt.embedded-c/MQTTPacket/src/MQTTConnectClient.c",
                 "deps/org.eclipse.paho.mqtt.embedded-c/MQTTPacket/src/MQTTConnectServer.c",
                 "deps/org.eclipse.paho.mqtt.embedded-c/MQTTPacket/src/MQTTDeserializePublish.c",
@@ -35,13 +36,13 @@ build = {
                 "deps/org.eclipse.paho.mqtt.embedded-c/MQTTPacket/src/MQTTUnsubscribeServer.c",
                 "src/luamqttpacket.c"
             },
-            incdirs = { "deps/org.eclipse.paho.mqtt.embedded-c/MQTTPacket/src" }
+            incdirs = { "deps/org.eclipse.paho.mqtt.embedded-c/MQTTPacket/src", "deps/lua-compat-5.2" }
         }
     },
     install = {
         lua = {
             ["luamqttc.client"] = "src/client.lua",
             ["luamqttc.timer"] = "src/timer.lua"
-         }
+        }
     }
 }
