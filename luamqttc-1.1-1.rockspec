@@ -1,8 +1,9 @@
 package = "luamqttc"
-version = "1.0-2"
+version = "1.1-1"
 
 source = {
-    url = "https://github.com/Yongke/luamqttc"
+    url = "git@github.com:Yongke/luamqttc.git"
+    tag = "v1.1"
 }
 
 description = {
