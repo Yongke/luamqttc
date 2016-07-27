@@ -252,6 +252,11 @@ _M.cycle_packet = function(self)
     if type == self.PUBLISH then
         local ok, topic, message, packet_id, dup, qos, retained = mqttpacket.deserialize_publish(data)
         assert(ok)
+        if qos > 0 then
+            local ackdata = mqttpacket.serialize_ack(self.PUBACK, false, packet_id)
+            local ok, err = self:send(ackdata)
+            assert(ok, err)
+        end
         self:handle_callbacks(topic, message, packet_id, dup, qos, retained)
     elseif type == self.PUBREC then
         local ok, dup, packet_id = mqttpacket.deserialize_ack(data)
