@@ -1,6 +1,9 @@
 local socket = require("socket")
 local os, setmetatable= os, setmetatable
-local difftime = os.difftime
+
+local difftime = function (t1, t2)
+    return t1 - t2
+end
 
 local _M = {}
 
@@ -20,5 +23,3 @@ _M.remain = function(self)
 end
 
 return _M
-
-
