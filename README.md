@@ -11,6 +11,8 @@ Supported features:
 * Last will topic
 * SSL
 
+## Note
+* To avoid 1) luasec package from luarocks repo can not load and 2) 100% cpu usage problem, you can install luasec manually from https://github.com/Yongke/luasec
 
 ## How to build
 
