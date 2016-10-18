@@ -147,6 +147,7 @@ _M.message_loop = function(self, timeout)
         until self.timer:remain() < 0 or (type == nil and data ~= "timeout")
     else
         repeat
+            self:settimeout()
             local type, data = self:cycle_packet()
         until type == nil and data ~= "timeout"
     end
@@ -238,11 +239,13 @@ _M.read_packet = function(self)
         multiplier = multiplier * 128
     until c < 128
 
-    local data, err = self:receive(len)
-    if not data then
-        return nil, err
+    if len > 0 then
+        local data, err = self:receive(len)
+        if not data then
+            return nil, err
+        end
+        table_insert(buff, data)
     end
-    table_insert(buff, data)
 
     return type, table.concat(buff)
 end
