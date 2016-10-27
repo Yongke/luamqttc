@@ -13,6 +13,7 @@ Supported features:
 
 ## Note
 * To avoid 1) luasec package from luarocks repo can not load and 2) 100% cpu usage problem, you can install luasec manually from https://github.com/Yongke/luasec
+* org.eclipse.paho.mqtt.embedded-c is compiled by default in little-endian byte order, to compile it in big-endian byte order, use compile flag `-DREVERSED`
 
 ## How to build
 
