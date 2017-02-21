@@ -1,5 +1,7 @@
 # luamqttc - An lua mqtt client
 
+[ ![Codeship Status for Yongke/luamqttc](https://codeship.com/projects/337086e0-da1a-0134-a3d0-5af04d25d964/status?branch=master)](https://codeship.com/projects/203577)
+
 luamqttc is base on the paho Embedded MQTT C Client Library - MQTTPacket.
 
 It also depends on luasocket and luasec.
