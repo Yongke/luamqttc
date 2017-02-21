@@ -1,0 +1,5 @@
+test:
+  build:
+    image: luamqttc-test
+    dockerfile_path: Dockerfile
+  cached: true
