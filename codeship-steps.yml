@@ -1,3 +1,3 @@
 - name: test
   service: test
-  command: bash test.sh
+  command: bash ci/test.sh
