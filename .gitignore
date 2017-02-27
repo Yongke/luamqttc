@@ -2,3 +2,4 @@
 mqttpacket.so
 *.o
 *.rock
+cmake-build-debug
