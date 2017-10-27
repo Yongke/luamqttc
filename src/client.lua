@@ -79,13 +79,21 @@ _M.connect = function(self, host, port, connopts)
     local sock = assert(socket.connect(host, port))
 
     if connopts.usessl then
-        local params = { mode = "client", protocol = "tlsv1_2" }
+        local params = { mode = "client", protocol = "tlsv1" }
         if connopts.cafile then
            params.cafile = connopts.cafile
            params.verify = "peer"
         end
+        if connopts.certificate then
+           params.certificate = connopts.certificate
+        end
+        if connopts.key then
+           params.key = connopts.key
+        end
+
         sock = assert(ssl.wrap(sock, params))
         assert(sock:dohandshake())
+        sock:getpeerverification()
     end
 
     self.transport = sock
