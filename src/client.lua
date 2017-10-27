@@ -79,16 +79,19 @@ _M.connect = function(self, host, port, connopts)
     local sock = assert(socket.connect(host, port))
 
     if connopts.usessl then
-        local params = { mode = "client", protocol = "tlsv1" }
+        local params = { mode = "client", protocol = "tlsv1_2" }
+        if connopts.protocol then
+           params.protocol = connopts.protocol
+        end
         if connopts.cafile then
-           params.cafile = connopts.cafile
-           params.verify = "peer"
+            params.cafile = connopts.cafile
+            params.verify = "peer"
         end
         if connopts.certificate then
-           params.certificate = connopts.certificate
+            params.certificate = connopts.certificate
         end
         if connopts.key then
-           params.key = connopts.key
+            params.key = connopts.key
         end
 
         sock = assert(ssl.wrap(sock, params))
