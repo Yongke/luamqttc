@@ -156,16 +156,22 @@ _M.subscribe = function(self, topic, qos, callback, timeout)
     return true
 end
 
-_M.message_loop = function(self, timeout)
+_M.message_loop = function(self, timeout, sleep)
     if timeout then
         self:settimeout(timeout)
         repeat
             local type, data = self:cycle_packet()
+            if sleep then
+                socket.select(nil, nil, sleep)
+            end
         until self.timer:remain() < 0 or (type == nil and data ~= "timeout")
     else
         repeat
             self:settimeout()
             local type, data = self:cycle_packet()
+            if sleep then
+                socket.select(nil, nil, sleep)
+            end 
         until type == nil and data ~= "timeout"
     end
 end
