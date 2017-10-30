@@ -79,24 +79,33 @@ _M.connect = function(self, host, port, connopts)
     local sock = assert(socket.connect(host, port))
 
     if connopts.usessl then
-        local params = { mode = "client", protocol = "tlsv1_2" }
+        local params = { mode = "client", protocol = "tlsv1_2", verify = "none" }
+
         if connopts.protocol then
-           params.protocol = connopts.protocol
+            params.protocol = connopts.protocol
         end
+
+        if connopts.verify then
+            params.verify = connopts.verify
+        end
+
         if connopts.cafile then
             params.cafile = connopts.cafile
-            params.verify = "peer"
         end
+
         if connopts.certificate then
             params.certificate = connopts.certificate
         end
+
         if connopts.key then
             params.key = connopts.key
         end
 
         sock = assert(ssl.wrap(sock, params))
         assert(sock:dohandshake())
-        sock:getpeerverification()
+        if params.verify == "peer" then
+            assert(sock:getpeerverification())
+        end
     end
 
     self.transport = sock
@@ -156,22 +165,16 @@ _M.subscribe = function(self, topic, qos, callback, timeout)
     return true
 end
 
-_M.message_loop = function(self, timeout, sleep)
+_M.message_loop = function(self, timeout)
     if timeout then
         self:settimeout(timeout)
         repeat
             local type, data = self:cycle_packet()
-            if sleep then
-                socket.select(nil, nil, sleep)
-            end
         until self.timer:remain() < 0 or (type == nil and data ~= "timeout")
     else
         repeat
             self:settimeout()
             local type, data = self:cycle_packet()
-            if sleep then
-                socket.select(nil, nil, sleep)
-            end 
         until type == nil and data ~= "timeout"
     end
 end

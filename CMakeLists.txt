@@ -28,7 +28,7 @@ INCLUDE_DIRECTORIES(deps/org.eclipse.paho.mqtt.embedded-c/MQTTPacket/src/)
 INCLUDE_DIRECTORIES(deps/lua-compat-5.2)
 ADD_LIBRARY(luamqttpacket SHARED ${SOURCES_luamqttpacket} ${SOURCES_lua-compat-5.2})
 
-INCLUDE_DIRECTORIES(/usr/local/include/lua5.1/)
+INCLUDE_DIRECTORIES(/Users/yongke/.luaver/lua/5.1.5/include/)
 TARGET_LINK_LIBRARIES(luamqttpacket lua.5.1)
 
 #INCLUDE_DIRECTORIES(/usr/local/include/lua5.2/)
