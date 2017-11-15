@@ -228,7 +228,7 @@ local connect_ssl = function()
     cb_buf = {}
     print("SSL test")
 
-    local host = "iot.eclipse.org"
+    local host = "test.mosquitto.org"
     local port = 8883
     local aclient = mqttclient.new("myclientid")
 

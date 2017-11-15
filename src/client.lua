@@ -234,12 +234,14 @@ _M.receive = function(self, pattern)
     return data, err
 end
 
+local readtimeout = 0.1
+
 _M.read_packet = function(self)
     local buff = {}
 
     -- reset the tansport timeout to a small one,
     -- logic here is getting the whole packet or return immediately
-    self.transport:settimeout(0.1)
+    self.transport:settimeout(readtimeout)
     local data, err = self:receive(1)
     if not data then
         return nil, err
@@ -293,8 +295,15 @@ _M.cycle_packet = function(self)
         local ackdata = mqttpacket.serialize_ack(self.PUBREL, false, packet_id)
         local ok, err = self:send(ackdata)
         assert(ok, err)
+    elseif type == self.PINGRESP then
+        self.pingresp_timer = nil
+    end
+
+    if self.pingresp_timer then
+        assert(self.pingresp_timer:remain() > 0, "can not receive ping response")
     end
     self:keepalive()
+
     return type, data
 end
 
@@ -303,6 +312,7 @@ _M.keepalive = function(self)
         local data = mqttpacket.serialize_pingreq()
         local ok, err = self:send(data)
         assert(ok, err)
+        self.pingresp_timer = timer.new(5)
     end
 end
 
