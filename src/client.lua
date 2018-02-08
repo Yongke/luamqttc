@@ -310,7 +310,8 @@ end
 _M.keepalive = function(self)
     if self.keepalive_timer:remain() < 0 then
         local data = mqttpacket.serialize_pingreq()
-        local ok, err = self:send(data)
+        self:setkatimeout()
+        local ok, err = self.transport:send(data)
         assert(ok, err)
         self.pingresp_timer = timer.new(5)
     end
